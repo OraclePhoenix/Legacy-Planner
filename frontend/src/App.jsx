@@ -7,6 +7,7 @@ import Contacts from './pages/Contacts.jsx';
 import Messages from './pages/Messages.jsx';
 import SendPage from './pages/Send.jsx';
 import Activity from './pages/Activity.jsx';
+import Trusted from './pages/Trusted.jsx';
 import Settings from './pages/Settings.jsx';
 import Admin from './pages/Admin.jsx';
 
@@ -16,6 +17,7 @@ const NAV = [
   ['/contacts', 'Contacts'],
   ['/messages', 'Messages'],
   ['/send', 'Send'],
+  ['/trusted', 'Emergency contacts'],
   ['/activity', 'Activity'],
   ['/settings', 'Settings'],
 ];
@@ -50,6 +52,7 @@ export default function App() {
           <Route path="/messages" element={<Messages />} />
           <Route path="/send" element={<SendPage />} />
           <Route path="/activity" element={<Activity />} />
+          <Route path="/trusted" element={<Trusted />} />
           <Route path="/settings" element={<Settings />} />
           {user.role === 'admin' && <Route path="/admin" element={<Admin />} />}
           <Route path="*" element={<Navigate to="/" replace />} />

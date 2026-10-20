@@ -27,6 +27,7 @@ export default function Admin() {
       <label htmlFor="astatus">Show </label>
       <select id="astatus" value={status} onChange={(e) => setStatus(e.target.value)}>
         <option value="awaiting_admin">Waiting for confirmation</option>
+        <option value="awaiting_trustee">Waiting for an emergency contact</option>
         <option value="checkin_pending">Check-in pending</option>
         <option value="scheduled">Scheduled</option>
         <option value="">All</option>

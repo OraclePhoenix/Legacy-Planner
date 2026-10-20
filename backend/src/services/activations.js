@@ -6,8 +6,10 @@ const clock = require('../utils/clock');
 const { decrypt } = require('../utils/crypto');
 const HttpError = require('../utils/httpError');
 
-const OPEN_STATUSES = ['checkin_pending', 'awaiting_admin', 'scheduled', 'dispatching'];
-const CANCELLABLE_STATUSES = ['checkin_pending', 'awaiting_admin', 'scheduled'];
+const OPEN_STATUSES = ['checkin_pending', 'awaiting_admin', 'awaiting_trustee', 'scheduled', 'dispatching'];
+const CANCELLABLE_STATUSES = ['checkin_pending', 'awaiting_admin', 'awaiting_trustee', 'scheduled'];
+// Runs the owner did not start themselves; any sign-in by the owner cancels them.
+const AUTO_SOURCES = ['inactivity', 'trustee'];
 const HOUR = 60 * 60 * 1000;
 
 const addHours = (date, hours) => new Date(date.getTime() + hours * HOUR);
@@ -35,10 +37,10 @@ async function recipientCount(userId, client = db) {
 async function insertActivation(client, fields) {
   try {
     const { rows } = await client.query(
-      `INSERT INTO activations (user_id, source, status, check_in_deadline, dispatch_at, created_by, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7) RETURNING *`,
+      `INSERT INTO activations (user_id, source, status, check_in_deadline, dispatch_at, created_by, reported_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8) RETURNING *`,
       [fields.userId, fields.source, fields.status, fields.checkInDeadline || null,
-        fields.dispatchAt || null, fields.createdBy || null, fields.now]
+        fields.dispatchAt || null, fields.createdBy || null, fields.reportedBy || null, fields.now]
     );
     return rows[0];
   } catch (err) {
@@ -88,13 +90,13 @@ async function cancel(activation, actor, reason, ip) {
   return row;
 }
 
-// Signing in or checking in proves the user is fine, so inactivity runs stop.
+// Signing in or checking in proves the user is fine, so inactivity and trustee runs stop.
 async function cancelInactivityRuns(user, reason, ip) {
   const { rows } = await db.query(
     `UPDATE activations SET status = 'cancelled', cancel_reason = $2, cancelled_by = $1,
             completed_at = now(), updated_at = now()
-      WHERE user_id = $1 AND source = 'inactivity' AND status = ANY($3) RETURNING id`,
-    [user.id, reason, CANCELLABLE_STATUSES]
+      WHERE user_id = $1 AND source = ANY($4) AND status = ANY($3) RETURNING id`,
+    [user.id, reason, CANCELLABLE_STATUSES, AUTO_SOURCES]
   );
   for (const { id } of rows) {
     await audit.record({ userId: user.id, actorId: user.id, action: 'activation.cancelled',
@@ -103,22 +105,49 @@ async function cancelInactivityRuns(user, reason, ip) {
   return rows.length;
 }
 
-async function confirmByAdmin(activationId, admin, ip) {
+// Moves a run waiting on confirmation to scheduled. `kind` is 'admin' or 'trustee';
+// the caller has already checked that the confirmer may act for this owner.
+async function confirmRun(activationId, confirmer, kind, ip) {
   const { rows } = await db.query(
     'SELECT a.*, u.dispatch_delay_hours, u.phone_enc FROM activations a JOIN users u ON u.id = a.user_id WHERE a.id = $1',
     [activationId]
   );
   const activation = rows[0];
   if (!activation) throw new HttpError(404, 'Activation not found');
-  if (activation.user_id === admin.id) throw new HttpError(403, 'Admins cannot confirm their own notification run');
+  if (activation.user_id === confirmer.id) throw new HttpError(403, 'You cannot confirm your own notification run');
+  if (activation.reported_by && activation.reported_by === confirmer.id) {
+    throw new HttpError(403, 'The person who reported this cannot also confirm it');
+  }
   const dispatchAt = addHours(clock.now(), activation.dispatch_delay_hours);
-  const row = await transition(db, activationId, ['awaiting_admin'], {
-    status: 'scheduled', confirmed_by: admin.id, dispatch_at: dispatchAt,
+  const row = await transition(db, activationId, [`awaiting_${kind}`], {
+    status: 'scheduled', confirmed_by: confirmer.id, dispatch_at: dispatchAt,
   });
-  if (!row) throw new HttpError(409, 'This run is not waiting for confirmation');
-  await audit.record({ userId: activation.user_id, actorId: admin.id, action: 'activation.admin_confirmed',
+  if (!row) throw new HttpError(409, 'This run is not waiting for your confirmation');
+  await audit.record({ userId: activation.user_id, actorId: confirmer.id, action: `activation.${kind}_confirmed`,
     details: { activationId, dispatchAt }, ip });
-  await alertOwner(activation, `Legacy Planner: an administrator confirmed your notification run. Messages send at ${dispatchAt.toISOString()} unless you sign in.`);
+  const who = kind === 'admin' ? 'An administrator' : 'Your emergency contact';
+  await alertOwner(activation, `Legacy Planner: ${who} confirmed your notification run. Messages send at ${dispatchAt.toISOString()} unless you sign in.`);
+  return row;
+}
+
+const confirmByAdmin = (activationId, admin, ip) => confirmRun(activationId, admin, 'admin', ip);
+
+// A trusted contact says something has happened. This does not send anything:
+// it starts the same check-in window an inactivity run would.
+async function reportByTrustee(owner, trustee, ip) {
+  const now = clock.now();
+  if ((await recipientCount(owner.id)) === 0) {
+    throw new HttpError(422, 'This person has no messages ready to send');
+  }
+  const deadline = addHours(now, owner.checkin_grace_hours);
+  const row = await insertActivation(db, {
+    userId: owner.id, source: 'trustee', status: 'checkin_pending', checkInDeadline: deadline,
+    createdBy: trustee.id, reportedBy: trustee.id, now,
+  });
+  await audit.record({ userId: owner.id, actorId: trustee.id, action: 'activation.reported_by_trustee',
+    details: { activationId: row.id, checkInDeadline: deadline }, ip });
+  await alertOwner(owner, `Legacy Planner: ${trustee.name} reported that something has happened to you. `
+    + `If you are fine, sign in before ${deadline.toISOString()} to stop your messages being sent.`);
   return row;
 }
 
@@ -157,10 +186,10 @@ async function cancelRunsForActiveUsers(now) {
     `UPDATE activations a SET status = 'cancelled', cancel_reason = 'user_active',
             completed_at = $2, updated_at = now()
        FROM users u
-      WHERE u.id = a.user_id AND a.source = 'inactivity' AND a.status = ANY($1)
+      WHERE u.id = a.user_id AND a.source = ANY($3) AND a.status = ANY($1)
         AND u.last_active_at > a.created_at
       RETURNING a.id, a.user_id`,
-    [CANCELLABLE_STATUSES, now]
+    [CANCELLABLE_STATUSES, now, AUTO_SOURCES]
   );
   for (const row of rows) {
     await audit.record({ userId: row.user_id, action: 'activation.cancelled',
@@ -171,15 +200,15 @@ async function cancelRunsForActiveUsers(now) {
 
 async function escalateExpiredCheckins(now) {
   const { rows } = await db.query(
-    `SELECT a.*, u.require_admin_confirmation, u.dispatch_delay_hours, u.phone_enc
+    `SELECT a.*, u.require_admin_confirmation, u.require_trustee_confirmation, u.dispatch_delay_hours, u.phone_enc
        FROM activations a JOIN users u ON u.id = a.user_id
       WHERE a.status = 'checkin_pending' AND a.check_in_deadline <= $1`,
     [now]
   );
   for (const activation of rows) {
-    const set = activation.require_admin_confirmation
-      ? { status: 'awaiting_admin' }
-      : { status: 'scheduled', dispatch_at: addHours(now, activation.dispatch_delay_hours) };
+    let set = { status: 'scheduled', dispatch_at: addHours(now, activation.dispatch_delay_hours) };
+    if (activation.require_admin_confirmation) set = { status: 'awaiting_admin' };
+    else if (activation.require_trustee_confirmation) set = { status: 'awaiting_trustee' };
     const row = await transition(db, activation.id, ['checkin_pending'], set);
     if (!row) continue;
     await audit.record({ userId: activation.user_id, action: `activation.${row.status}`,
@@ -267,5 +296,7 @@ module.exports = {
   cancel,
   cancelInactivityRuns,
   confirmByAdmin,
+  confirmRun,
+  reportByTrustee,
   runSchedulerTick,
 };

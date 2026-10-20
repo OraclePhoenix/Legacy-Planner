@@ -13,6 +13,7 @@ export default function Settings() {
     checkinGraceHours: user.checkinGraceHours,
     dispatchDelayHours: user.dispatchDelayHours,
     requireAdminConfirmation: user.requireAdminConfirmation,
+    requireTrusteeConfirmation: user.requireTrusteeConfirmation,
   });
   const [pw, setPw] = useState({ currentPassword: '', password: '' });
   const [msg, setMsg] = useState({});
@@ -71,10 +72,13 @@ export default function Settings() {
         <label className="check">
           <input type="checkbox" checked={form.requireAdminConfirmation} onChange={set('requireAdminConfirmation')} /> Require an administrator to confirm before inactivity messages are sent
         </label>
+        <label className="check">
+          <input type="checkbox" checked={form.requireTrusteeConfirmation} onChange={set('requireTrusteeConfirmation')} /> Require one of my emergency contacts to confirm (someone other than the person who reported)
+        </label>
         <p className="muted">
           How it works: after {form.inactivityDays} days without signing in we text you. If you don't sign in within {form.checkinGraceHours} hours,
-          {form.requireAdminConfirmation ? ' an administrator is asked to confirm, then' : ''} messages are scheduled to send {form.dispatchDelayHours} hours later.
-          Signing in at any point before then cancels it.
+          {form.requireAdminConfirmation ? ' an administrator is asked to confirm, then' : form.requireTrusteeConfirmation ? ' an emergency contact is asked to confirm, then' : ''} messages are scheduled to send {form.dispatchDelayHours} hours later.
+          Signing in at any point before then cancels it. The same steps apply if an emergency contact reports that something has happened.
         </p>
         <button className="btn btn-primary">Save settings</button>
       </form>

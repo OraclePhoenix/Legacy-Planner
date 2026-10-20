@@ -9,6 +9,7 @@ Legacy Planner helps you organize end-of-life tasks, keep the people who matter 
 - **Messages**: write a message per group of recipients. `{{name}}` is replaced with each recipient's name.
 - **Sending**: send manually, or let the inactivity check do it (see below).
 - **Activity log**: every sign-in, setting change and notification step, with who did it.
+- **Emergency contacts**: people you trust, with their own accounts, who can report that something has happened or confirm a send. They see only your name and whether a run is in progress.
 - **Admin**: review and confirm or reject inactivity runs for users who require it.
 
 ## How sending is protected
@@ -27,7 +28,14 @@ Manual triggers are limited to 5 attempts per hour per account, and failed passw
 2. If you don't sign in within the grace window (default 72 hours), the run either waits for an administrator to confirm (if you turned that on) or is scheduled.
 3. A final waiting period (same as manual) runs, with another text to you, before anything is sent.
 
-Signing in, or any activity while signed in, at any point before sending cancels an inactivity run automatically. Administrators cannot confirm a run on their own account.
+**Emergency contact report**
+1. An emergency contact you added (and who accepted) reports that something has happened, re-entering their own password.
+2. You get a text and the same check-in window as inactivity starts. Signing in stops it.
+3. After that, the same confirmation and waiting steps as inactivity apply. The reporter can withdraw their report at any time.
+
+You can require an emergency contact to confirm before an inactivity or reported run is scheduled. The person who reported can never be the one who confirms, so add at least two contacts who can confirm if you turn this on.
+
+Signing in, or any activity while signed in, at any point before sending cancels an inactivity or reported run automatically. Nobody can confirm a run on their own account.
 
 **Server-side guards**
 - Only one open run per account, enforced by the database.
@@ -113,7 +121,7 @@ backend/
     utils/           encryption, phone validation, clock
   tests/             Jest + Supertest against PostgreSQL
 frontend/
-  src/pages/         Dashboard, Checklist, Contacts, Messages, Send, Activity, Settings, Admin
+  src/pages/         Dashboard, Checklist, Contacts, Messages, Send, Emergency contacts, Activity, Settings, Admin
 docker-compose.yml   PostgreSQL + API + Nginx-served frontend
 ```
 
@@ -131,5 +139,9 @@ All routes are under `/api` and need `Authorization: Bearer <token>` except sign
 | GET, POST, PATCH, DELETE | `/templates`, `/templates/:id` | Messages and their recipients |
 | GET, POST | `/activations` | List runs; trigger with `{ password, confirmationPhrase }` |
 | POST | `/activations/:id/cancel` | Cancel with `{ password }` |
+| GET, POST, PATCH, DELETE | `/trustees`, `/trustees/:id` | Your emergency contacts |
+| GET, POST | `/trustees/invitations`, `/trustees/invitations/:id/accept` or `/decline` | Invitations to be someone's emergency contact |
+| GET | `/trustees/people` | People who trust you, and any run in progress |
+| POST | `/trustees/people/:ownerId/report`, `.../activations/:id/confirm`, `.../activations/:id/withdraw` | Report, confirm or withdraw, each with `{ password }` |
 | GET | `/audit` | Activity log (`page`, `limit`) |
 | GET, POST | `/admin/activations`, `/admin/activations/:id/confirm`, `/:id/reject` | Admin only |

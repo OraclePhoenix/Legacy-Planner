@@ -9,7 +9,7 @@ const HttpError = require('../utils/httpError');
 const router = express.Router();
 
 router.get('/activations',
-  query('status').optional().isIn(['checkin_pending', 'awaiting_admin', 'scheduled', 'dispatching', 'sent', 'failed', 'cancelled']),
+  query('status').optional().isIn(['checkin_pending', 'awaiting_admin', 'awaiting_trustee', 'scheduled', 'dispatching', 'sent', 'failed', 'cancelled']),
   validate,
   async (req, res, next) => {
     try {

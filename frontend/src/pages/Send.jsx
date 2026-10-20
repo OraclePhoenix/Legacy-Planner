@@ -5,8 +5,9 @@ import { useApi, formatDateTime } from '../hooks.js';
 import { Alert, Field, Modal, StatusBadge } from '../components/ui.jsx';
 
 const STATUS_TEXT = {
-  checkin_pending: 'You have been inactive. Sign-in activity or a check-in cancels this.',
+  checkin_pending: 'This started because you were inactive or an emergency contact reported something. Checking in cancels it.',
   awaiting_admin: 'Waiting for an administrator to confirm. Nothing has been sent.',
+  awaiting_trustee: 'Waiting for one of your emergency contacts to confirm. Nothing has been sent.',
   scheduled: 'Messages are scheduled. You can still cancel.',
   dispatching: 'Messages are being sent now.',
 };
@@ -80,7 +81,7 @@ export default function SendPage() {
           {current.checkInDeadline && current.status === 'checkin_pending' && <p>Check-in deadline: <strong>{formatDateTime(current.checkInDeadline)}</strong></p>}
           {current.dispatchAt && <p>Sends at: <strong>{formatDateTime(current.dispatchAt)}</strong></p>}
           <div className="actions">
-            {current.source === 'inactivity' && <button className="btn btn-primary" onClick={checkIn}>I'm here, cancel it</button>}
+            {current.source !== 'manual' && <button className="btn btn-primary" onClick={checkIn}>I'm here, cancel it</button>}
             {current.status !== 'dispatching' && <button className="btn btn-danger" onClick={() => setCancelOpen(true)}>Cancel this run</button>}
           </div>
         </section>
@@ -104,7 +105,7 @@ export default function SendPage() {
             {runs.data?.activations.map((a) => (
               <tr key={a.id}>
                 <td>{formatDateTime(a.createdAt)}</td>
-                <td>{a.source === 'manual' ? 'Sent by you' : 'Inactivity'}</td>
+                <td>{{ manual: 'Sent by you', inactivity: 'Inactivity', trustee: 'Emergency contact report' }[a.source]}</td>
                 <td><StatusBadge status={a.status} />{a.cancelReason && <span className="muted"> ({a.cancelReason.replace(/_/g, ' ')})</span>}</td>
                 <td>{formatDateTime(a.completedAt)}</td>
               </tr>
