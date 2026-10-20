@@ -23,6 +23,7 @@ const FIELDS = {
   checkinGraceHours: 'checkin_grace_hours',
   dispatchDelayHours: 'dispatch_delay_hours',
   requireAdminConfirmation: 'require_admin_confirmation',
+  requireTrusteeConfirmation: 'require_trustee_confirmation',
 };
 
 router.patch('/',
@@ -33,6 +34,7 @@ router.patch('/',
   body('checkinGraceHours').optional().isInt({ min: 24, max: 720 }),
   body('dispatchDelayHours').optional().isInt({ min: 1, max: 168 }),
   body('requireAdminConfirmation').optional().isBoolean(),
+  body('requireTrusteeConfirmation').optional().isBoolean(),
   validate,
   async (req, res, next) => {
     try {
@@ -52,6 +54,12 @@ router.patch('/',
       const enabling = updates.inactivity_enabled === true && !req.user.inactivity_enabled;
       if (enabling && !(updates.phone_enc ?? req.user.phone_enc)) {
         throw new HttpError(422, 'Add your own phone number first so check-in reminders can reach you');
+      }
+      if (updates.require_trustee_confirmation === true && !req.user.require_trustee_confirmation) {
+        const { rows: [{ n }] } = await db.query(
+          "SELECT count(*)::int AS n FROM trustees WHERE owner_id = $1 AND status = 'accepted' AND can_confirm", [req.user.id]
+        );
+        if (n === 0) throw new HttpError(422, 'Add an emergency contact who can confirm, and wait for them to accept, first');
       }
       const keys = Object.keys(updates);
       if (keys.length === 0) return res.json({ user: serializeUser(req.user) });
