@@ -14,6 +14,9 @@ export default function Settings() {
     dispatchDelayHours: user.dispatchDelayHours,
     requireAdminConfirmation: user.requireAdminConfirmation,
     requireTrusteeConfirmation: user.requireTrusteeConfirmation,
+    remindersEnabled: user.remindersEnabled,
+    reminderIntervalDays: user.reminderIntervalDays,
+    reminderLookaheadDays: user.reminderLookaheadDays,
   });
   const [pw, setPw] = useState({ currentPassword: '', password: '' });
   const [msg, setMsg] = useState({});
@@ -53,6 +56,20 @@ export default function Settings() {
         <Field label="Your mobile number" id="sphone" hint="Check-in reminders and send warnings go here. International format, e.g. +14155550123.">
           <input id="sphone" type="tel" value={form.phone} onChange={set('phone')} aria-describedby="sphone-hint" />
         </Field>
+
+        <h2>Task reminders</h2>
+        <label className="check">
+          <input type="checkbox" checked={form.remindersEnabled} onChange={set('remindersEnabled')} /> Text me about overdue and upcoming checklist tasks
+        </label>
+        <div className="row">
+          <Field label="Every how many days" id="rint">
+            <input id="rint" type="number" min={1} max={30} value={form.reminderIntervalDays} onChange={set('reminderIntervalDays', true)} />
+          </Field>
+          <Field label="Include tasks due within (days)" id="rlook">
+            <input id="rlook" type="number" min={0} max={60} value={form.reminderLookaheadDays} onChange={set('reminderLookaheadDays', true)} />
+          </Field>
+        </div>
+        <p className="muted">Only pending tasks with a due date are included. Nothing is sent when nothing is due.</p>
 
         <h2>Automatic sending if I'm inactive</h2>
         <label className="check">
