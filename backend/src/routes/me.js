@@ -24,6 +24,9 @@ const FIELDS = {
   dispatchDelayHours: 'dispatch_delay_hours',
   requireAdminConfirmation: 'require_admin_confirmation',
   requireTrusteeConfirmation: 'require_trustee_confirmation',
+  remindersEnabled: 'reminders_enabled',
+  reminderIntervalDays: 'reminder_interval_days',
+  reminderLookaheadDays: 'reminder_lookahead_days',
 };
 
 router.patch('/',
@@ -35,6 +38,9 @@ router.patch('/',
   body('dispatchDelayHours').optional().isInt({ min: 1, max: 168 }),
   body('requireAdminConfirmation').optional().isBoolean(),
   body('requireTrusteeConfirmation').optional().isBoolean(),
+  body('remindersEnabled').optional().isBoolean(),
+  body('reminderIntervalDays').optional().isInt({ min: 1, max: 30 }),
+  body('reminderLookaheadDays').optional().isInt({ min: 0, max: 60 }),
   validate,
   async (req, res, next) => {
     try {
@@ -51,9 +57,10 @@ router.patch('/',
           updates.phone_enc = encrypt(phone);
         }
       }
-      const enabling = updates.inactivity_enabled === true && !req.user.inactivity_enabled;
+      const enabling = (updates.inactivity_enabled === true && !req.user.inactivity_enabled)
+        || (updates.reminders_enabled === true && !req.user.reminders_enabled);
       if (enabling && !(updates.phone_enc ?? req.user.phone_enc)) {
-        throw new HttpError(422, 'Add your own phone number first so check-in reminders can reach you');
+        throw new HttpError(422, 'Add your own phone number first so reminders can reach you');
       }
       if (updates.require_trustee_confirmation === true && !req.user.require_trustee_confirmation) {
         const { rows: [{ n }] } = await db.query(

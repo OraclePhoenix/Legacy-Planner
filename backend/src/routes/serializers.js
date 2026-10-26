@@ -13,6 +13,9 @@ const serializeUser = (u) => ({
   dispatchDelayHours: u.dispatch_delay_hours,
   requireAdminConfirmation: u.require_admin_confirmation,
   requireTrusteeConfirmation: u.require_trustee_confirmation,
+  remindersEnabled: u.reminders_enabled,
+  reminderIntervalDays: u.reminder_interval_days,
+  reminderLookaheadDays: u.reminder_lookahead_days,
   createdAt: u.created_at,
 });
 

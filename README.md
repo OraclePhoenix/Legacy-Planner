@@ -9,6 +9,7 @@ Legacy Planner helps you organize end-of-life tasks, keep the people who matter 
 - **Messages**: write a message per group of recipients. `{{name}}` is replaced with each recipient's name.
 - **Sending**: send manually, or let the inactivity check do it (see below).
 - **Activity log**: every sign-in, setting change and notification step, with who did it.
+- **Task reminders**: optional texts to your own phone listing overdue tasks and tasks due soon, at most once per chosen interval.
 - **Emergency contacts**: people you trust, with their own accounts, who can report that something has happened or confirm a send. They see only your name and whether a run is in progress.
 - **Admin**: review and confirm or reject inactivity runs for users who require it.
 

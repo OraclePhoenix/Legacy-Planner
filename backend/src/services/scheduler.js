@@ -1,6 +1,7 @@
 const db = require('../db');
 const config = require('../config');
 const { runSchedulerTick } = require('./activations');
+const { sendDueReminders } = require('./reminders');
 
 const LOCK_ID = 90210;
 let timer = null;
@@ -12,7 +13,7 @@ async function tick() {
     const { rows } = await client.query('SELECT pg_try_advisory_lock($1) AS ok', [LOCK_ID]);
     if (!rows[0].ok) return;
     try {
-      const result = await runSchedulerTick();
+      const result = { ...(await runSchedulerTick()), reminders: await sendDueReminders() };
       if (Object.values(result).some(Boolean)) console.log('[scheduler]', result);
     } finally {
       await client.query('SELECT pg_advisory_unlock($1)', [LOCK_ID]);
