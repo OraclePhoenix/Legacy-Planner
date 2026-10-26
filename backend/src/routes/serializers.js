@@ -12,6 +12,7 @@ const serializeUser = (u) => ({
   checkinGraceHours: u.checkin_grace_hours,
   dispatchDelayHours: u.dispatch_delay_hours,
   requireAdminConfirmation: u.require_admin_confirmation,
+  requireTrusteeConfirmation: u.require_trustee_confirmation,
   createdAt: u.created_at,
 });
 
@@ -45,6 +46,7 @@ const serializeActivation = (a) => ({
   status: a.status,
   checkInDeadline: a.check_in_deadline,
   dispatchAt: a.dispatch_at,
+  reportedBy: a.reported_by,
   confirmedBy: a.confirmed_by,
   cancelledBy: a.cancelled_by,
   cancelReason: a.cancel_reason,

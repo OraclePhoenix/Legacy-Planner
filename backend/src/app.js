@@ -28,6 +28,7 @@ function createApp() {
   app.use('/api/contacts', authenticate, require('./routes/contacts'));
   app.use('/api/templates', authenticate, require('./routes/templates'));
   app.use('/api/activations', authenticate, require('./routes/activations'));
+  app.use('/api/trustees', authenticate, require('./routes/trustees'));
   app.use('/api/audit', authenticate, require('./routes/audit'));
   app.use('/api/admin', authenticate, requireRole('admin'), require('./routes/admin'));
 
